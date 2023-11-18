@@ -1,0 +1,220 @@
+---
+title: "K-means"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+date: "2023-11-16"
+---
+
+```{r}
+
+options(repos = "https://cran.r-project.org")
+
+```
+
+
+Load and Explore the Data
+
+```{r}
+
+# Load the dataset
+
+pharma_data <- read.csv("Pharmaceuticals.csv")
+
+```
+
+
+
+```{r}
+
+# structure of the dataset
+
+str(pharma_data)
+
+```
+
+```{r}
+
+# summary of the dataset
+
+summary(pharma_data)
+
+```
+
+
+```{r}
+
+# First few rows of the data
+
+head(pharma_data)
+
+```
+
+Data Preprocessing
+
+Checking for Missing Values
+
+```{r}
+
+missing_values <- colSums(is.na(pharma_data))
+
+print(missing_values[missing_values > 0])
+
+```
+Handling Missing Values
+
+```{r}
+
+pharma_data_complete <- na.omit(pharma_data)
+
+```
+
+Feature Selection and Scaling
+
+```{r}
+
+numeric_columns <- pharma_data[, sapply(pharma_data, is.numeric)]
+
+numeric_columns[is.na(numeric_columns)] <- apply(numeric_columns, 2, function(x) mean(x, na.rm = TRUE))
+
+scaled_data <- scale(numeric_columns)
+
+```
+
+k-means clustering
+
+```{r}
+
+set.seed(123)  
+k <- 3 
+kmeans_model <- kmeans(scaled_data, centers = k)
+
+kmeans_model$cluster  
+kmeans_model$centers  
+
+plot(scaled_data, col = kmeans_model$cluster)
+points(kmeans_model$centers, col = 1:k, pch = 8, cex = 2)  
+
+```
+
+Interpretation of Clusters
+
+```{r}
+
+cluster_assignments <- kmeans_model$cluster
+
+scaled_data_df <- as.data.frame(scaled_data)
+
+non_numeric_names <- names(pharma_data)[-c(1:9)]  
+renamed_pharma_data <- pharma_data
+names(renamed_pharma_data)[which(names(renamed_pharma_data) %in% non_numeric_names)] <- paste0(non_numeric_names, "_orig")
+
+renamed_pharma_data_numeric <- renamed_pharma_data[, sapply(renamed_pharma_data, is.numeric)]
+
+clustered_data <- cbind(scaled_data_df, Cluster = cluster_assignments)
+clustered_data <- cbind(clustered_data, renamed_pharma_data_numeric)
+
+dup_cols <- names(clustered_data)[duplicated(names(clustered_data))]
+clustered_data <- setNames(clustered_data, make.unique(names(clustered_data), sep = "_"))
+
+library(dplyr)
+
+cluster_summary <- clustered_data %>%
+  group_by(Cluster) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = 'drop')
+
+print(cluster_summary)
+
+```
+
+Analyze Other Variables
+
+```{r}
+
+unique(pharma_data$Median_Recommendation)
+
+sum(is.na(pharma_data$Median_Recommendation))
+sum(pharma_data$Median_Recommendation == "")
+
+length(pharma_data$Median_Recommendation)
+
+```
+```{r}
+
+colnames(pharma_data)
+
+```
+
+
+
+```{r}
+
+library(ggplot2)
+
+table_median_recommendation <- table(cluster_assignments, pharma_data$Median_Recommendation)
+
+print("Table for Median Recommendation:")
+print(table_median_recommendation)
+
+ggplot(data = pharma_data, aes(x = as.factor(cluster_assignments), fill = Median_Recommendation)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Median Recommendation by Cluster")
+
+```
+
+```{r}
+
+table_location <- table(cluster_assignments, pharma_data$Location)
+
+print("Table for Headquarters:")
+print(table_location)
+
+ggplot(data = pharma_data, aes(x = as.factor(cluster_assignments), fill = Location)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Location by Cluster")
+
+```
+
+```{r}
+
+table_stock_exchange <- table(cluster_assignments, pharma_data$Exchange)
+
+print("Table for Stock Exchange:")
+print(table_stock_exchange)
+
+ggplot(data = pharma_data, aes(x = as.factor(cluster_assignments), fill = Exchange)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Stock Exchange")
+
+```
+
+Cluster Names
+
+```{r}
+
+num_clusters <- 3
+
+cluster_centroids <- kmeans_model$centers
+
+assign_cluster_names <- function(centroids) {
+  cluster_names <- character(num_clusters)
+  for (i in 1:num_clusters) {
+     if (centroids[i, "Market_Cap"] > 50) {
+      cluster_names[i] <- "High Market Cap"
+    } else if (centroids[i, "Market_Cap"] < 20) {
+      cluster_names[i] <- "Low Market Cap"
+    } else {
+      cluster_names[i] <- "Moderate Market Cap"
+    }
+  }
+  return(cluster_names)
+}
+
+
+cluster_names <- assign_cluster_names(cluster_centroids)
+
+cluster_names
+
+```
+
